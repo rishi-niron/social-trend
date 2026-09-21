@@ -1,7 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import './App.css'
 
+const PROVIDER_URLS = {
+  mailtrap: 'http://localhost:4000/api/send-email',
+  resend: 'http://localhost:4001/api/send-email',
+} as const
+
 function App() {
+  const [provider, setProvider] = useState<keyof typeof PROVIDER_URLS>('mailtrap')
   const [to, setTo] = useState('')
   const [subject, setSubject] = useState('Test email')
   const [message, setMessage] = useState('Hello from the React test app!')
@@ -14,7 +20,7 @@ function App() {
     setErrorMessage('')
 
     try {
-      const res = await fetch('http://localhost:4000/api/send-email', {
+      const res = await fetch(PROVIDER_URLS[provider], {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to, subject, message }),
@@ -36,6 +42,17 @@ function App() {
     <section style={{ maxWidth: 480, margin: '4rem auto', textAlign: 'left' }}>
       <h1>Send test email</h1>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <label>
+          Provider
+          <select
+            value={provider}
+            onChange={(e) => setProvider(e.target.value as keyof typeof PROVIDER_URLS)}
+            style={{ width: '100%' }}
+          >
+            <option value="mailtrap">Mailtrap (Nodemailer)</option>
+            <option value="resend">Resend</option>
+          </select>
+        </label>
         <label>
           To
           <input
@@ -71,7 +88,7 @@ function App() {
           {status === 'sending' ? 'Sending...' : 'Send email'}
         </button>
       </form>
-      {status === 'success' && <p style={{ color: 'green' }}>Email sent! Check your Mailtrap inbox.</p>}
+      {status === 'success' && <p style={{ color: 'green' }}>Email sent via {provider}!</p>}
       {status === 'error' && <p style={{ color: 'red' }}>Error: {errorMessage}</p>}
     </section>
   )
