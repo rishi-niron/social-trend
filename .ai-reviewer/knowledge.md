@@ -1,28 +1,31 @@
 # social-trend reviewer notes
 
 ## Architecture
-The repository contains a Vite React/TypeScript frontend at the root, plus separate Node/Express package directories (`demo-app/`, `server/`, and `resend-test/`). The root app uses Vite with `@vitejs/plugin-react`; `demo-app` is a layered Express scaffold with routes, controllers, services, middleware, and utilities. Each package has its own `package.json`; there is no workspace configuration shown.
+
+The repository contains a root React 19 + TypeScript Vite application, configured in `vite.config.ts` and built through the root `package.json`. It also includes separate Node/Express experiments: `demo-app/` is a structured scaffold with routes, controllers, services, middleware, and tests, while `server/` and `resend-test/` are standalone package directories. These packages have independent manifests and should not be assumed to share the root application’s build or runtime.
 
 ## Conventions
-- Root frontend commands are defined in `/package.json`: `dev` runs Vite, `build` runs `tsc -b && vite build`, and `lint` runs `oxlint`.
-- Vite configuration stays minimal and uses `defineConfig` with the React plugin in `/vite.config.ts`.
-- TypeScript project references are split between `tsconfig.app.json` and `tsconfig.node.json`, referenced by `/tsconfig.json`.
-- Node packages use ES modules (`"type": "module"`). Local imports include the `.js` extension, as in `demo-app/src/app.js` importing `./routes/index.js`.
-- The Express scaffold separates responsibilities by directory, documented in `demo-app/README.md`: routes dispatch to controllers, controllers call services, and middleware handles cross-cutting concerns.
-- `demo-app/src/app.js` exports `createApp()` rather than starting the server. Server startup belongs in `demo-app/src/index.js`, which loads configuration and calls `app.listen`.
-- Middleware ordering is load-bearing: JSON parsing, request logging, rate limiting, `/api` routes, not-found handling, then the error handler (`demo-app/src/app.js`).
-- Controllers expose grouped object methods and return JSON responses directly. Missing resources use `404`; creation uses `201`; successful deletion uses `204` with `.end()` (`demo-app/src/controllers/itemController.js`).
-- Environment loading and defaults are centralized in `demo-app/src/config/index.js`; startup logging uses the utility logger (`demo-app/src/index.js`).
-- Backend package scripts use Node’s native watch mode for development and native test runner support where configured (`demo-app/package.json`).
+
+- Root frontend code uses ES modules, TypeScript, Vite, and React; the root build runs `tsc -b && vite build` (`package.json`).
+- Vite configuration uses `defineConfig` and plugin registration in `vite.config.ts`; avoid adding ad hoc bundler setup elsewhere.
+- `demo-app` follows layered Express organization: route definitions delegate to controllers, controllers delegate business logic to services (`demo-app/README.md`, `src/controllers/itemController.js`).
+- Express application construction is centralized in `demo-app/src/app.js` via exported `createApp`; startup/listening belongs in `src/index.js`.
+- Middleware is registered in pipeline order in `demo-app/src/app.js`: JSON parsing, request logging, rate limiting, `/api` routes, then `notFound` and `errorHandler`.
+- Configuration is loaded through `dotenv/config` and exposed from `demo-app/src/config/index.js`; consumers should use the `config` object rather than reading environment variables directly.
+- Controllers use object namespaces with concise method names (`list`, `get`, `create`, `update`, `remove`) and return JSON responses directly (`demo-app/src/controllers/itemController.js`).
+- Missing resources consistently return `404` with `{ error: 'Item not found' }`; successful creation returns `201`, and deletion returns `204` with `.end()` (`demo-app/src/controllers/itemController.js`).
+- Root TypeScript configuration is split into referenced app and Node projects (`tsconfig.json`); preserve that project-reference structure when adding TypeScript files.
 
 ## Intentional non-standard choices
-- The repository intentionally contains multiple standalone Node packages rather than one unified backend: `demo-app`, `server`, and `resend-test` each have independent manifests and dependency sets.
-- `demo-app` is explicitly a scaffold/demo application (`demo-app/README.md`), so its in-memory/simple service structure and minimal configuration should not be treated as production completeness.
-- The root README is the stock React + Vite template and may not describe the full multi-package repository.
+
+- This is not a single unified Node workspace: `demo-app`, `server`, and `resend-test` each have their own `package.json` and dependency lifecycle. Changes should target the relevant package rather than assuming root scripts manage all subprojects.
+- The Express scaffold uses plain JavaScript despite the root application being TypeScript (`demo-app/src/**/*.js`).
+- The root README is largely the stock React/Vite template; it does not describe the additional server packages.
 
 ## Watch out for
-- Do not assume a root dependency or script applies to subpackages. Changes under `demo-app/`, `server/`, or `resend-test/` should use that directory’s manifest and module conventions.
-- Preserve Express middleware order, especially keeping the error handler after routes and `notFound` (`demo-app/src/app.js`).
-- Avoid putting business logic in controllers; they should delegate to services as shown in `demo-app/src/controllers/itemController.js`.
-- Preserve `.js` extensions in ESM relative imports.
-- Check HTTP semantics when changing handlers: resource misses return `404`, creates return `201`, and deletes return an empty `204` response.
+
+- Do not place API middleware after `notFound`/`errorHandler`; their ordering in `demo-app/src/app.js` is functional.
+- New Express errors must reach the four-argument error middleware in `demo-app/src/middleware/errorHandler.js`; avoid swallowing failures or sending multiple responses.
+- Avoid exposing sensitive internal error details through the current `{ error: err.message }` response unless that behavior is explicitly intended (`demo-app/src/middleware/errorHandler.js`).
+- Keep API paths under `/api` when extending the scaffold; the route mount is centralized in `demo-app/src/app.js`.
+- Do not assume `npm test` at the repository root covers server code: the root has no test script, while `demo-app` defines its own test command and `resend-test` currently has a placeholder failing test script.
